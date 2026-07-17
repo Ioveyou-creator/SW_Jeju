@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- ===============================================================
+       JE:JU — Just Enough. Just You.
+       디지털 감정 쉼터 (서비스 본체)
+       ---------------------------------------------------------------
+       · 단일 HTML / 순수 HTML + CSS + Vanilla JS (프레임워크 없음)
+       · 디자인 시스템: Google Stitch 시안 기반
+         - 메인 컬러 #2E6FF2 (신뢰·고요·평화의 파랑)
+         - 폰트: Pretendard 단일 사용
+         - 여백: 8px 단위 스케일
+         - UI 이모지 금지 → 전부 SVG 아이콘
+       · Google Apps Script + Google Sheet 연동
+         (하단 CONFIG.APPS_SCRIPT_URL 에 배포 URL 입력)
+       =============================================================== -->
+
+  <title>JE:JU — 잠시 쉬어가는 감정 쉼터</title>
+  <meta name="description" content="오늘도 고생 많았어요. 잠시, JE:JU에서 쉬어가세요. 있는 그대로의 나를 위한 디지털 감정 쉼터." />
+
+  <!-- OG 메타 (강의: 링크 공유 시 첫인상) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="JE:JU — Just Enough. Just You." />
+  <meta property="og:description" content="오늘도 고생 많았어요. 잠시, JE:JU에서 쉬어가세요." />
+  <meta property="og:locale" content="ko_KR" />
+
+  <!-- 파비콘: 파도 모양 SVG (외부 파일 없이 데이터 URI) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232E6FF2'/%3E%3Cpath d='M8 40c6-8 10-8 16 0s10 8 16 0 10-8 16 0v16H8z' fill='%23fff' opacity='.9'/%3E%3C/svg%3E" />
+
+  <!-- 폰트: Pretendard (강의 권장 — KRDS 표준 서체) -->
+  <link rel="stylesheet" as="style" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+
+  <style>
+    /* =============================================================
+       1. 디자인 시스템 (Design Tokens)
+       ============================================================= */
+    :root {
+      /* 컬러 — 5개 이내 원칙 + 파도 단계용 시맨틱 컬러 */
+      --color-primary:      #2E6FF2;   /* 메인: 신뢰와 고요의 파랑 */
+      --color-primary-deep: #1C56D6;   /* 메인 진한 톤 (hover) */
+      --color-primary-soft: #EAF1FE;   /* 메인 연한 톤 (배경 강조) */
+      --color-font-main:    #16233F;   /* 본문 — 깊은 밤바다 남색 */
+      --color-font-sub:     #6B7A93;   /* 보조 텍스트 */
+      --color-bg-main:      #F7FAFD;   /* 화면 바탕 */
+      --color-surface:      #FFFFFF;   /* 카드 표면 */
+
+      /* 파도 단계 시맨틱 컬러 (감정의 세기) */
+      --wave-1: #9EC5F8;
+      --wave-2: #6FA4F5;
+      --wave-3: #2E6FF2;
+      --wave-4: #12B77F;
+      --wave-5: #E85C5C;
+
+      /* 간격 — 8px 단위 스케일 */
+      --space-1: 8px;  --space-2: 16px; --space-3: 24px;
+      --space-4: 32px; --space-5: 40px; --space-6: 48px;
+      --space-8: 64px; --space-10: 80px; --space-12: 96px;
+
+      /* 모서리 / 그림자 / 모션 */
+      --radius-s: 12px; --radius-m: 20px; --radius-l: 28px; --radius-pill: 999px;
+      --shadow-soft: 0 8px 28px rgba(30, 70, 140, 0.08);
+      --shadow-float: 0 16px 44px rgba(30, 70, 140, 0.12);
+      --ease-calm: cubic-bezier(0.25, 0.6, 0.3, 1);
+      --duration: 0.28s;                /* 강의: 0.3초 이내 절제된 모션 */
+    }
+
+    /* =============================================================
+       2. 리셋 & 공통
+       ============================================================= */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+      color: var(--color-font-main);
+      background: var(--color-bg-main);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    button { font: inherit; cursor: pointer; border: none; background: none; }
+    input, textarea { font: inherit; color: inherit; }
+    :focus-visible { outline: 3px solid rgba(46, 111, 242, 0.4); outline-offset: 2px; border-radius: 4px; }
+
+    .visually-hidden { /* 스크린리더 전용 */
+      position: absolute; width: 1px; height: 1px;
+      clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap;
+    }
+
+    /* =============================================================
+       3. 헤더 — 글래스모피즘 내비게이션
+       ============================================================= */
+    .site-header {
+      position: fixed; inset: 0 0 auto 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-2) var(--space-5);
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(46, 111, 242, 0.08);
+      transition: transform var(--duration) var(--ease-calm);
+    }
+    .site-header.is-hidden { transform: translateY(-100%); }
+
+    .brand-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 800; font-size: 22px; letter-spacing: 0.02em;
+      color: var(--color-primary); text-decoration: none;
+    }
+    .brand-logo svg { display: block; }
+
+    .site-nav { display: flex; gap: var(--space-4); }
+    .site-nav a {
+      font-size: 15px; font-weight: 500; text-decoration: none;
+      color: var(--color-font-sub);
+      transition: color var(--duration) var(--ease-calm);
+    }
+    .site-nav a:hover, .site-nav a.is-active { color: var(--color-primary); }
+
+    /* =============================================================
+       4. 화면(Screen) 전환 시스템
+          — 폼이 아니라 '장면'이 흐르듯 전환된다
+       ============================================================= */
+    .screen { display: none; min-height: 100vh; }
+    .screen.is-active { display: block; animation: screen-in 0.5s var(--ease-calm) both; }
+    .screen.is-leaving { animation: screen-out 0.3s var(--ease-calm) both; }
+
+    @keyframes screen-in {
+      from { opacity: 0; transform: translateY(24px); filter: blur(6px); }
+      to   { opacity: 1; transform: none; filter: none; }
+    }
+    @keyframes screen-out {
+      to { opacity: 0; transform: translateY(-16px); filter: blur(4px); }
+    }
+
+    /* 가운데 정렬형 장면 (환대/파도/기록/편지) */
+    .scene {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: var(--space-12) var(--space-3) var(--space-8);
+      position: relative;
+    }
+    .scene-kicker {
+      font-size: 14px; font-weight: 700; letter-spacing: 0.14em;
+      color: var(--color-primary); text-transform: uppercase;
+      margin-bottom: var(--space-2);
+    }
+    .scene-title { font-size: clamp(24px, 4vw, 34px); font-weight: 700; line-height: 1.45; }
+    .scene-sub { margin-top: var(--space-2); color: var(--color-font-sub); font-size: 16px; }
+
+    /* =============================================================
+       5. 랜딩 — 히어로 (바다, 파도, 위로의 첫 문장)
+       ============================================================= */
+    .hero {
+      position: relative; min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; overflow: hidden;
+      padding: var(--space-12) var(--space-3);
+      /* 새벽 바다 하늘 — 브랜드 배경 그라데이션 (의도된 예외) */
+      background: linear-gradient(180deg, #FDF6F0 0%, #EAF3FE 34%, #CFE3FC 68%, #A9CCF8 100%);
+    }
+
+    /* 떠 있는 파도 마스코트 */
+    .hero-mascot {
+      width: 132px; height: 132px;
+      margin-bottom: var(--space-4);
+      animation: float 5s ease-in-out infinite;
+      filter: drop-shadow(0 18px 24px rgba(46, 111, 242, 0.18));
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-14px); }
+    }
+
+    .hero-title {
+      font-size: clamp(30px, 5.4vw, 52px);
+      font-weight: 800; line-height: 1.4; letter-spacing: -0.01em;
+    }
+    .hero-title .accent { color: var(--color-primary); }
+    .hero-sub {
+      margin-top: var(--space-3);
+      font-size: clamp(15px, 2vw, 18px);
+      color: var(--color-font-sub); font-weight: 500;
+    }
+
+    /* 주요 버튼 — 공통 컴포넌트 */
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 10px;
+      margin-top: var(--space-5);
+      padding: 18px 44px;
+      background: var(--color-primary); color: #fff;
+      font-size: 18px; font-weight: 700;
+      border-radius: var(--radius-pill);
+      box-shadow: 0 12px 28px rgba(46, 111, 242, 0.32);
+      transition: transform var(--duration) var(--ease-calm),
+                  box-shadow var(--duration) var(--ease-calm),
+                  background var(--duration) var(--ease-calm);
+    }
+    .btn-primary:hover {
+      background: var(--color-primary-deep);
+      transform: translateY(-3px);
+      box-shadow: 0 18px 36px rgba(46, 111, 242, 0.38);
+    }
+    .btn-primary:active { transform: translateY(-1px); }
+    .btn-primary svg { transition: transform var(--duration) var(--ease-calm); }
+    .btn-primary:hover svg { transform: translateX(4px); }
+
+    .btn-ghost {
+      display: inline-block; margin-top: var(--space-2);
+      padding: 12px 24px; border-radius: var(--radius-pill);
+      color: var(--color-font-sub); font-size: 15px; font-weight: 500;
+      transition: color var(--duration) var(--ease-calm), background var(--duration) var(--ease-calm);
+    }
+    .btn-ghost:hover { color: var(--color-primary); background: rgba(46, 111, 242, 0.06); }
+
+    /* 스크롤 유도 */
+    .hero-scroll-hint {
+      position: absolute; bottom: 128px; left: 50%; transform: translateX(-50%);
+      color: rgba(22, 35, 63, 0.4); font-size: 13px; letter-spacing: 0.1em;
+      animation: hint-bob 2.4s ease-in-out infinite;
+    }
+    @keyframes hint-bob { 0%,100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, 8px); } }
+
+    /* 겹겹이 흐르는 파도 (히어로 하단) */
+    .waves { position: absolute; bottom: -2px; left: 0; width: 100%; pointer-events: none; }
+    .waves svg { display: block; width: 200%; height: 140px; }
+    .wave-layer { position: relative; }
+    .wave-layer + .wave-layer { margin-top: -110px; }
+    .wave-move-slow   { animation: wave-drift 16s linear infinite; }
+    .wave-move-mid    { animation: wave-drift 11s linear infinite reverse; }
+    .wave-move-fast   { animation: wave-drift 8s  linear infinite; }
+    @keyframes wave-drift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+    /* =============================================================
+       6. 랜딩 — 가치 카드 (Peace / Comfort / Calm)
+       ============================================================= */
+    .values {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3);
+      max-width: 960px; margin: 0 auto;
+      padding: var(--space-10) var(--space-3);
+    }
+    .value-card {
+      background: var(--color-surface);
+      border: 1px solid rgba(46, 111, 242, 0.07);
+      border-radius: var(--radius-l);
+      padding: var(--space-5) var(--space-4);
+      text-align: center;
+      box-shadow: var(--shadow-soft);
+      opacity: 0; transform: translateY(28px);   /* 스크롤 등장용 초기 상태 */
+      transition: opacity 0.6s var(--ease-calm), transform 0.6s var(--ease-calm),
+                  box-shadow var(--duration) var(--ease-calm);
+    }
+    .value-card.is-visible { opacity: 1; transform: none; }
+    .value-card:hover { box-shadow: var(--shadow-float); }
+    .value-icon {
+      width: 56px; height: 56px; margin: 0 auto var(--space-2);
+      display: grid; place-items: center;
+      background: var(--color-primary-soft); border-radius: 18px;
+      color: var(--color-primary);
+    }
+    .value-card h3 { font-size: 19px; font-weight: 700; margin-bottom: var(--space-1); }
+    .value-card p { font-size: 14.5px; color: var(--color-font-sub); }
+    .value-card .value-eng {
+      font-size: 11.5px; font-weight: 700; letter-spacing: 0.2em;
+      color: var(--color-primary); margin-bottom: 4px;
+    }
+
+    /* =============================================================
+       7. 환대 — 닉네임 장면
+       ============================================================= */
+    .name-input {
+      margin-top: var(--space-5);
+      width: min(420px, 88vw);
+      padding: 20px 28px; text-align: center;
+      font-size: 20px; font-weight: 600;
+      background: var(--color-surface);
+      border: 2px solid rgba(46, 111, 242, 0.16);
+      border-radius: var(--radius-m);
+      box-shadow: var(--shadow-soft);
+      transition: border-color var(--duration) var(--ease-calm), box-shadow var(--duration) var(--ease-calm);
+    }
+    .name-input::placeholder { color: #A9B6C9; font-weight: 400; }
+    .name-input:focus { outline: none; border-color: var(--color-primary); box-shadow: var(--shadow-float); }
+    /* 필수 동의 박스 (필수/선택 분리 — 개인정보보호법) */
+    .consent-box {
+      margin-top: var(--space-3);
+      width: min(420px, 88vw);
+      display: flex; flex-direction: column; gap: 10px;
+      text-align: left;
+      background: var(--color-surface);
+      border: 1px solid rgba(46, 111, 242, 0.14);
+      border-radius: var(--radius-m);
+      padding: var(--space-2) var(--space-3);
+      box-shadow: var(--shadow-soft);
+    }
+    .consent-item { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+    .consent-item input { width: 18px; height: 18px; accent-color: var(--color-primary); cursor: pointer; flex: none; }
+    .consent-item label { cursor: pointer; }
+    .consent-item .footer-link { font-size: 12.5px; margin-left: auto; flex: none; }
+    .consent-sub { font-size: 12px; color: var(--color-font-sub); line-height: 1.6; }
+
+    /* =============================================================
+       8. 오늘의 파도 — 감정 선택 카드
+       ============================================================= */
+    .wave-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-2);
+      max-width: 880px; width: 100%;
+      margin-top: var(--space-6);
+    }
+    .wave-option {
+      background: var(--color-surface);
+      border: 2px solid transparent;
+      border-radius: var(--radius-m);
+      padding: var(--space-3) var(--space-1);
+      display: flex; flex-direction: column; align-items: center; gap: var(--space-1);
+      box-shadow: var(--shadow-soft);
+      transition: transform var(--duration) var(--ease-calm),
+                  border-color var(--duration) var(--ease-calm),
+                  box-shadow var(--duration) var(--ease-calm);
+    }
+    .wave-option:hover { transform: translateY(-6px); box-shadow: var(--shadow-float); }
+    .wave-option.is-selected {
+      border-color: var(--color-primary);
+      background: var(--color-primary-soft);
+      transform: translateY(-6px);
+    }
+    .wave-option .wave-icon {
+      width: 56px; height: 56px; border-radius: 16px;
+      display: grid; place-items: center;
+    }
+    .wave-option .wave-label { font-size: 15px; font-weight: 700; }
+    .wave-option .wave-desc { font-size: 12.5px; color: var(--color-font-sub); line-height: 1.45; }
+
+    /* =============================================================
+       9. 기록 — 한 번에 한 질문 (물결 스텝)
+       ============================================================= */
+    .reflect-card {
+      width: min(640px, 92vw);
+      margin-top: var(--space-5);
+      background: var(--color-surface);
+      border-radius: var(--radius-l);
+      box-shadow: var(--shadow-float);
+      padding: var(--space-6) var(--space-5);
+      text-align: center;
+    }
+    .step-dots { display: flex; justify-content: center; gap: 10px; margin-bottom: var(--space-4); }
+    .step-dots span {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #D7E3F6; transition: all var(--duration) var(--ease-calm);
+    }
+    .step-dots span.is-current { background: var(--color-primary); width: 24px; border-radius: 4px; }
+    .step-dots span.is-done { background: var(--color-primary); opacity: 0.45; }
+
+    .reflect-question { font-size: clamp(20px, 3vw, 25px); font-weight: 700; line-height: 1.5; }
+    .reflect-hint { margin-top: var(--space-1); font-size: 14.5px; color: var(--color-font-sub); }
+
+    .reflect-input {
+      margin-top: var(--space-4);
+      width: 100%; min-height: 120px; resize: none;
+      padding: var(--space-3);
+      background: var(--color-bg-main);
+      border: 2px solid transparent; border-radius: var(--radius-m);
+      font-size: 17px; line-height: 1.7; text-align: center;
+      transition: border-color var(--duration) var(--ease-calm), background var(--duration) var(--ease-calm);
+    }
+    .reflect-input:focus { outline: none; border-color: var(--color-primary); background: #fff; }
+    .reflect-input::placeholder { color: #A9B6C9; }
+
+    .reflect-actions {
+      margin-top: var(--space-4);
+      display: flex; align-items: center; justify-content: center; gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+    .reflect-card .btn-primary { margin-top: 0; padding: 14px 36px; font-size: 16px; }
+    .reflect-card .btn-ghost { margin-top: 0; }
+
+    /* 사진 첨부 (기록 스텝) */
+    .photo-drop {
+      margin-top: var(--space-4);
+      width: 100%;
+      display: flex; flex-direction: column; align-items: center; gap: var(--space-1);
+      padding: var(--space-4);
+      background: var(--color-bg-main);
+      border: 2px dashed rgba(46, 111, 242, 0.28);
+      border-radius: var(--radius-m);
+      color: var(--color-font-sub); font-size: 15px; font-weight: 600;
+      transition: all var(--duration) var(--ease-calm);
+    }
+    .photo-drop:hover { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-soft); }
+    .photo-preview { margin-top: var(--space-3); }
+    .photo-preview img {
+      max-width: 100%; max-height: 260px;
+      border-radius: var(--radius-m);
+      box-shadow: var(--shadow-soft);
+      display: block; margin: 0 auto var(--space-1);
+    }
+
+    /* 스텝 내용 교체 시 잔잔한 페이드 */
+    .step-fade { animation: step-in 0.4s var(--ease-calm) both; }
+    @keyframes step-in {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    /* =============================================================
+       10. 내려놓는 중 — 로딩 (마음을 바다에 띄우기)
+       ============================================================= */
+    .saving-visual { width: 200px; height: 120px; margin-bottom: var(--space-3); }
+    .saving-boat { animation: boat-drift 3.2s ease-in-out infinite; transform-origin: center; }
+    @keyframes boat-drift {
+      0%,100% { transform: translateY(0) rotate(-2deg); }
+      50%     { transform: translateY(-8px) rotate(2deg); }
+    }
+    .saving-wave-line {
+      stroke-dasharray: 240; stroke-dashoffset: 240;
+      animation: line-flow 2.2s var(--ease-calm) infinite;
+    }
+    @keyframes line-flow { to { stroke-dashoffset: 0; } }
+    .saving-dots span {
+      display: inline-block; width: 8px; height: 8px; margin: 0 4px;
+      border-radius: 50%; background: var(--color-primary);
+      animation: dot-bob 1.2s ease-in-out infinite;
+    }
+    .saving-dots span:nth-child(2) { animation-delay: 0.15s; }
+    .saving-dots span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes dot-bob { 0%,100% { transform: translateY(0); opacity: .5; } 50% { transform: translateY(-8px); opacity: 1; } }
+
+    /* =============================================================
+       11. 파도의 편지
+       ============================================================= */
+    .letter-card {
+      width: min(560px, 92vw);
+      margin-top: var(--space-5);
+      background: linear-gradient(160deg, #FFFFFF 0%, #F4F9FF 100%);
+      border: 1px solid rgba(46, 111, 242, 0.12);
+      border-radius: var(--radius-l);
+      box-shadow: var(--shadow-float);
+      padding: var(--space-6) var(--space-5);
+      position: relative;
+      animation: letter-rise 0.9s var(--ease-calm) both 0.2s;
+    }
+    @keyframes letter-rise {
+      from { opacity: 0; transform: translateY(36px) scale(0.97); filter: blur(8px); }
+      to   { opacity: 1; transform: none; filter: none; }
+    }
+    .letter-seal {
+      width: 52px; height: 52px; margin: 0 auto var(--space-3);
+      background: var(--color-primary-soft); border-radius: 50%;
+      display: grid; place-items: center; color: var(--color-primary);
+    }
+    .letter-text {
+      font-size: clamp(18px, 2.6vw, 22px); font-weight: 600;
+      line-height: 1.8; word-break: keep-all;
+    }
+    .letter-text::before { content: "“"; color: var(--color-primary); }
+    .letter-text::after  { content: "”"; color: var(--color-primary); }
+    .letter-from { margin-top: var(--space-3); font-size: 14px; color: var(--color-font-sub); }
+
+    /* =============================================================
+       11-1. 여정 — 지나온 파도 아카이브
+       ============================================================= */
+    .memory-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: var(--space-3); width: min(980px, 100%);
+      margin-top: var(--space-5);
+    }
+    .journey-loading, .journey-empty {
+      grid-column: 1 / -1; color: var(--color-font-sub);
+      padding: var(--space-6) 0; text-align: center;
+    }
+    .memory-card {
+      background: var(--color-surface);
+      border-radius: var(--radius-m);
+      box-shadow: var(--shadow-soft);
+      padding: var(--space-3); text-align: left;
+      animation: pop-in 0.5s var(--ease-calm) both;
+      transition: transform var(--duration) var(--ease-calm), box-shadow var(--duration) var(--ease-calm);
+    }
+    .memory-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-float); }
+    .memory-head {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 12.5px; color: var(--color-font-sub); margin-bottom: var(--space-1);
+    }
+    .memory-wave { color: var(--color-primary); font-weight: 700; }
+    .memory-photo {
+      width: 100%; border-radius: var(--radius-s);
+      margin: var(--space-1) 0; display: block;
+    }
+    .memory-msg { font-size: 15px; font-weight: 600; line-height: 1.7; word-break: keep-all; }
+    .memory-msg::before { content: "“"; color: var(--color-primary); }
+    .memory-msg::after  { content: "”"; color: var(--color-primary); }
+
+    @keyframes pop-in {
+      from { opacity: 0; transform: translateY(22px) scale(0.93); }
+      to   { opacity: 1; }
+    }
+
+    /* =============================================================
+       11-2. 쉼 놀이터 — 통통 튀는 활동 카드
+       ============================================================= */
+    .play-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: var(--space-3); width: min(980px, 100%);
+      margin-top: var(--space-5);
+    }
+    .play-card {
+      border-radius: var(--radius-m);
+      padding: var(--space-4) var(--space-3);
+      text-align: left;
+      box-shadow: var(--shadow-soft);
+      animation: pop-in 0.5s var(--ease-calm) both;
+      transition: transform var(--duration) var(--ease-calm), box-shadow var(--duration) var(--ease-calm);
+    }
+    .play-card:nth-child(odd)  { transform: rotate(-1.2deg); }
+    .play-card:nth-child(even) { transform: rotate(1.2deg); }
+    .play-card:hover { transform: translateY(-8px) rotate(0deg) scale(1.02); box-shadow: var(--shadow-float); }
+    .play-card h3 { font-size: 17px; font-weight: 800; margin: 10px 0 6px; }
+    .play-card p { font-size: 14px; color: var(--color-font-sub); line-height: 1.65; word-break: keep-all; }
+    .play-tag {
+      display: inline-block; font-size: 11.5px; font-weight: 700;
+      padding: 4px 12px; border-radius: var(--radius-pill); letter-spacing: 0.06em;
+    }
+    /* 카테고리별 파스텔 컬러 (시맨틱 컬러 재사용) */
+    .cat-body    { background: color-mix(in srgb, var(--wave-4) 10%, white); }
+    .cat-body    .play-tag { background: color-mix(in srgb, var(--wave-4) 18%, white); color: #0E8A61; }
+    .cat-mind    { background: color-mix(in srgb, var(--color-primary) 8%, white); }
+    .cat-mind    .play-tag { background: var(--color-primary-soft); color: var(--color-primary); }
+    .cat-imagine { background: color-mix(in srgb, #F5A623 10%, white); }
+    .cat-imagine .play-tag { background: color-mix(in srgb, #F5A623 18%, white); color: #B26E00; }
+    .cat-joy     { background: color-mix(in srgb, var(--wave-5) 8%, white); }
+    .cat-joy     .play-tag { background: color-mix(in srgb, var(--wave-5) 15%, white); color: #C43D3D; }
+
+    /* =============================================================
+       12. 푸터
+       ============================================================= */
+    .site-footer {
+      padding: var(--space-8) var(--space-3);
+      text-align: center; color: var(--color-font-sub); font-size: 13.5px;
+      background: transparent;
+    }
+    .site-footer .footer-brand { font-weight: 800; color: var(--color-primary); letter-spacing: 0.04em; }
+    .site-footer p { margin-top: 6px; }
+
+    /* 토스트 (연동 안내 등 시스템 메시지) */
+    .toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translate(-50%, 80px);
+      background: rgba(22, 35, 63, 0.92); color: #fff;
+      padding: 12px 24px; border-radius: var(--radius-pill);
+      font-size: 14px; opacity: 0; z-index: 200;
+      transition: all 0.4s var(--ease-calm);
+      pointer-events: none; max-width: 90vw; text-align: center;
+    }
+    .toast.is-show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* 푸터 문서 링크 */
+    .footer-link {
+      color: var(--color-font-sub); font-size: 13.5px;
+      text-decoration: underline; text-underline-offset: 3px;
+      text-decoration-color: rgba(107, 122, 147, 0.35);
+      transition: color var(--duration) var(--ease-calm);
+    }
+    .footer-link:hover { color: var(--color-primary); }
+
+    /* =============================================================
+       12-1. 문서 모달 (개인정보처리방침 / 이용약관)
+       ============================================================= */
+    .modal-backdrop {
+      position: fixed; inset: 0; z-index: 300;
+      display: none; place-items: center;
+      padding: var(--space-3);
+      background: rgba(10, 22, 44, 0.45);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    }
+    .modal-backdrop.is-open { display: grid; animation: modal-fade 0.3s var(--ease-calm) both; }
+    @keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
+
+    .modal {
+      background: var(--color-surface);
+      border-radius: var(--radius-l);
+      box-shadow: var(--shadow-float);
+      width: min(600px, 100%); max-height: 82vh;
+      overflow-y: auto;
+      padding: var(--space-6) var(--space-5);
+      text-align: left;
+      animation: modal-rise 0.35s var(--ease-calm) both;
+    }
+    @keyframes modal-rise {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: none; }
+    }
+    .modal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: var(--space-3);
+    }
+    .modal-head h3 { font-size: 22px; font-weight: 800; }
+    .modal-close {
+      width: 40px; height: 40px; border-radius: 50%;
+      display: grid; place-items: center;
+      color: var(--color-font-sub); background: var(--color-bg-main);
+      transition: all var(--duration) var(--ease-calm);
+    }
+    .modal-close:hover { color: var(--color-primary); background: var(--color-primary-soft); }
+    .modal .doc-intro {
+      font-size: 14.5px; color: var(--color-font-sub);
+      background: var(--color-primary-soft);
+      border-radius: var(--radius-s);
+      padding: var(--space-2); margin-bottom: var(--space-3);
+      line-height: 1.7;
+    }
+    .modal h4 { font-size: 16px; font-weight: 700; margin: var(--space-3) 0 var(--space-1); }
+    .modal p, .modal li { font-size: 14.5px; color: var(--color-font-sub); line-height: 1.75; }
+    .modal ul { padding-left: 20px; }
+    .modal .doc-date { margin-top: var(--space-3); font-size: 13px; }
+
+    /* =============================================================
+       13. 반응형 — 모바일
+       ============================================================= */
+    @media (max-width: 820px) {
+      .site-header { padding: 12px var(--space-2); }
+      .site-nav { gap: var(--space-2); }         /* 모바일에서도 메뉴 유지 (여정/놀이터 접근) */
+      .site-nav a { font-size: 13.5px; }
+      .values { grid-template-columns: 1fr; padding: var(--space-8) var(--space-3); }
+      .wave-grid { grid-template-columns: repeat(2, 1fr); }
+      .wave-grid .wave-option:last-child { grid-column: 1 / -1; }
+      .reflect-card { padding: var(--space-5) var(--space-3); }
+      .hero-scroll-hint { bottom: 110px; }
+    }
+
+    /* 모션 최소화 설정 존중 (접근성) */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- ================= 헤더 ================= -->
+  <header class="site-header" id="siteHeader">
+    <a class="brand-logo" href="#" data-action="go-home" aria-label="JE:JU 홈으로">
+      <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+        <rect width="64" height="64" rx="14" fill="#2E6FF2"/>
+        <path d="M8 40c6-8 10-8 16 0s10 8 16 0 10-8 16 0v16H8z" fill="#fff" opacity=".9"/>
+      </svg>
+      JE:JU
+    </a>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a href="#" class="is-active" data-action="go-home" data-nav>쉼터</a>
+      <a href="#" data-action="open-journey" data-nav>여정</a>
+      <a href="#" data-action="open-playground" data-nav>쉼 놀이터</a>
+    </nav>
+  </header>
+
+  <main id="app">
+
+    <!-- ================= 장면 1: 랜딩 ================= -->
+    <section class="screen is-active" id="screen-landing" aria-label="환영">
+      <div class="hero">
+        <!-- 파도 마스코트: 웃고 있는 작은 파도 -->
+        <svg class="hero-mascot" viewBox="0 0 120 120" aria-hidden="true">
+          <defs>
+            <linearGradient id="mascotBody" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#8FD6F2"/><stop offset="1" stop-color="#5FB7EA"/>
+            </linearGradient>
+          </defs>
+          <path fill="url(#mascotBody)" d="M60 12c26 0 44 18 44 44 0 15-7 27-19 34 4-7 3-12-2-14-6-2-11 2-17 3-22 4-50-4-50-27C16 28 34 12 60 12z"/>
+          <path fill="#EFF9FE" d="M104 56c0-10-3-19-9-26 8 2 13 9 13 17 0 7-2 9-4 9z" opacity=".9"/>
+          <path fill="#FFFFFF" d="M79 20c9 5 15 13 17 23 2 10-2 13-7 12-6-1-7-7-12-11-5-4-12-5-11-12 1-7 7-14 13-12z" opacity=".95"/>
+          <circle cx="48" cy="54" r="4.5" fill="#1E3A5F"/>
+          <circle cx="74" cy="54" r="4.5" fill="#1E3A5F"/>
+          <path d="M54 66q7 6 14 0" stroke="#1E3A5F" stroke-width="3.4" stroke-linecap="round" fill="none"/>
+          <ellipse cx="26" cy="62" rx="7" ry="9" fill="#7CC7EC" transform="rotate(-30 26 62)"/>
+        </svg>
+
+        <h1 class="hero-title">
+          오늘도 고생 많았어요.<br />
+          잠시, <span class="accent">JE:JU</span>에서 쉬어가세요.
+        </h1>
+        <p class="hero-sub">Just Enough. Just You. — 있는 그대로의 당신이면 충분해요.</p>
+
+        <button class="btn-primary" data-action="start-journey">
+          쉬어가기
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <span class="hero-scroll-hint" aria-hidden="true">천천히, 아래로</span>
+
+        <!-- 흐르는 파도 3겹 -->
+        <div class="waves" aria-hidden="true">
+          <div class="wave-layer"><svg class="wave-move-slow" viewBox="0 0 1440 140" preserveAspectRatio="none">
+            <path d="M0 70q90-44 180 0t180 0 180 0 180 0 180 0 180 0 180 0 180 0v70H0z" fill="rgba(46,111,242,0.10)"/>
+          </svg></div>
+          <div class="wave-layer"><svg class="wave-move-mid" viewBox="0 0 1440 140" preserveAspectRatio="none">
+            <path d="M0 84q120-52 240 0t240 0 240 0 240 0 240 0 240 0v56H0z" fill="rgba(46,111,242,0.18)"/>
+          </svg></div>
+          <div class="wave-layer"><svg class="wave-move-fast" viewBox="0 0 1440 140" preserveAspectRatio="none">
+            <path d="M0 96q160-56 320 0t320 0 320 0 320 0 320 0v44H0z" fill="#F7FAFD"/>
+          </svg></div>
+        </div>
+      </div>
+
+      <!-- 가치 카드 -->
+      <div class="values">
+        <article class="value-card">
+          <div class="value-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 3c3 4 6 6.8 6 10a6 6 0 1 1-12 0c0-3.2 3-6 6-10z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <p class="value-eng">PEACE</p>
+          <h3>평온</h3>
+          <p>잔잔한 파도의 리듬 속에서<br/>내 마음의 중심을 찾아요.</p>
+        </article>
+        <article class="value-card">
+          <div class="value-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 21s-7.5-4.6-9.5-9A5.4 5.4 0 0 1 12 7a5.4 5.4 0 0 1 9.5 5c-2 4.4-9.5 9-9.5 9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <p class="value-eng">COMFORT</p>
+          <h3>위안</h3>
+          <p>지친 마음이 쉬어가는<br/>안전한 항구가 되어드릴게요.</p>
+        </article>
+        <article class="value-card">
+          <div class="value-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3 15q4.5-5 9 0t9 0M3 9q4.5-5 9 0t9 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <p class="value-eng">CALM</p>
+          <h3>고요</h3>
+          <p>디지털 수평선의 고요함 속에서<br/>천천히 숨을 고르세요.</p>
+        </article>
+      </div>
+
+      <footer class="site-footer">
+        <span class="footer-brand">JE:JU</span>
+        <p>Just Enough. Just You. — 있는 그대로의 나</p>
+        <p>
+          <button class="footer-link" data-action="open-privacy">개인정보처리방침</button>
+          &nbsp;·&nbsp;
+          <button class="footer-link" data-action="open-terms">이용약관</button>
+        </p>
+      </footer>
+    </section>
+
+    <!-- ================= 장면 2: 환대 (닉네임) ================= -->
+    <section class="screen" id="screen-welcome" aria-label="이름 묻기">
+      <div class="scene">
+        <p class="scene-kicker">Welcome</p>
+        <h2 class="scene-title" id="welcomeTitle">잘 오셨어요.<br/>뭐라고 불러드리면 될까요?</h2>
+        <p class="scene-sub">본명이 아니어도 괜찮아요. 여기서 불리고 싶은 이름이면 충분해요.</p>
+        <label class="visually-hidden" for="nameInput">닉네임 입력</label>
+        <input class="name-input" id="nameInput" type="text" maxlength="12"
+               placeholder="예) 바다별" autocomplete="off" />
+        <label class="visually-hidden" for="pwInput">비밀번호 입력</label>
+        <input class="name-input" id="pwInput" type="password" maxlength="20"
+               placeholder="비밀번호 (4자 이상)" autocomplete="off" style="margin-top:16px" />
+        <p class="scene-sub" style="font-size:13.5px; margin-top:16px">
+          처음이라면 새 비밀번호로 나만의 쉼터가 만들어지고,<br/>
+          다시 오셨다면 쓰던 비밀번호로 지난 기록을 이어갈 수 있어요.
+        </p>
+        <!-- 필수 동의 (개인정보보호법: 항목·목적·기간 고지 후 개별 동의) -->
+        <div class="consent-box">
+          <div class="consent-item">
+            <input type="checkbox" id="agreeTerms" />
+            <label for="agreeTerms">[필수] 이용약관에 동의합니다</label>
+            <button class="footer-link" data-action="open-terms">보기</button>
+          </div>
+          <div class="consent-item">
+            <input type="checkbox" id="agreePrivacy" />
+            <label for="agreePrivacy">[필수] 개인정보 수집·이용에 동의합니다</label>
+            <button class="footer-link" data-action="open-privacy">보기</button>
+          </div>
+          <p class="consent-sub">사진 첨부는 선택 사항이라, 첨부하는 순간에만 이용돼요. 만 14세 이상만 이용할 수 있어요.</p>
+        </div>
+        <button class="btn-primary" data-action="submit-name">
+          이 이름으로 쉬어갈게요
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="btn-ghost" data-action="go-home">처음으로 돌아갈래요</button>
+      </div>
+    </section>
+
+    <!-- ================= 장면 3: 오늘의 파도 ================= -->
+    <section class="screen" id="screen-wave" aria-label="오늘의 파도 선택">
+      <div class="scene">
+        <p class="scene-kicker">Today's Wave</p>
+        <h2 class="scene-title" id="waveTitle">오늘, 마음의 파도는 어땠나요?</h2>
+        <p class="scene-sub">좋고 나쁜 감정은 없어요. 파도는 그저 높았다가, 낮아질 뿐이에요.</p>
+        <div class="wave-grid" id="waveGrid" role="radiogroup" aria-label="오늘의 파도 세기"></div>
+        <button class="btn-primary" id="waveNextBtn" data-action="submit-wave" style="visibility:hidden">
+          이 파도로 기록할게요
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="btn-ghost" data-action="change-name">다른 이름으로 쉬어갈래요</button>
+      </div>
+    </section>
+
+    <!-- ================= 장면 4: 기록 (한 번에 한 질문) ================= -->
+    <section class="screen" id="screen-reflection" aria-label="오늘의 기록">
+      <div class="scene">
+        <p class="scene-kicker">Reflection</p>
+        <div class="reflect-card">
+          <div class="step-dots" id="stepDots" aria-hidden="true"></div>
+          <div id="stepBody" class="step-fade">
+            <h2 class="reflect-question" id="stepQuestion"></h2>
+            <p class="reflect-hint" id="stepHint"></p>
+            <textarea class="reflect-input" id="stepInput" rows="3"></textarea>
+
+            <!-- 사진 스텝 전용 UI (평소에는 숨김) -->
+            <div id="photoField" style="display:none">
+              <input type="file" id="photoInput" accept="image/*" hidden />
+              <button type="button" class="photo-drop" id="photoPickBtn" data-action="pick-photo">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.2-1.8A1.5 1.5 0 0 1 10.55 3.5h2.9a1.5 1.5 0 0 1 1.25.7L15.9 6h1.6A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-8z"
+                        stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                  <circle cx="12" cy="12.5" r="3.2" stroke="currentColor" stroke-width="1.7"/>
+                </svg>
+                <span>사진 고르기</span>
+              </button>
+              <div class="photo-preview" id="photoPreview" style="display:none">
+                <img id="photoPreviewImg" alt="첨부한 사진 미리보기" />
+                <button type="button" class="btn-ghost" data-action="remove-photo">사진 빼기</button>
+              </div>
+            </div>
+            <div class="reflect-actions">
+              <button class="btn-ghost" id="stepSkipBtn" data-action="skip-step">지금은 건너뛸게요</button>
+              <button class="btn-primary" id="stepNextBtn" data-action="next-step"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 장면 5: 내려놓는 중 ================= -->
+    <section class="screen" id="screen-saving" aria-label="기록 저장 중">
+      <div class="scene">
+        <svg class="saving-visual" viewBox="0 0 200 120" aria-hidden="true">
+          <g class="saving-boat">
+            <path d="M78 62h44l-8 16H88z" fill="#2E6FF2"/>
+            <path d="M100 22v38m0-38c14 8 18 20 16 30l-16 8m0-38c-14 8-18 20-16 30l16 8"
+                  stroke="#6FA4F5" stroke-width="3" fill="none" stroke-linecap="round"/>
+          </g>
+          <path class="saving-wave-line" d="M10 96q22-14 44 0t44 0 44 0 44 0"
+                stroke="#2E6FF2" stroke-width="3" fill="none" stroke-linecap="round" opacity=".5"/>
+        </svg>
+        <h2 class="scene-title" id="savingTitle">마음을 바다에 띄우고 있어요</h2>
+        <p class="scene-sub">무거웠던 만큼, 천천히 가라앉혀 드릴게요.</p>
+        <div class="saving-dots" style="margin-top:24px" aria-hidden="true"><span></span><span></span><span></span></div>
+      </div>
+    </section>
+
+    <!-- ================= 장면 6: 파도의 편지 ================= -->
+    <section class="screen" id="screen-letter" aria-label="파도의 편지">
+      <div class="scene">
+        <p class="scene-kicker">파도의 편지</p>
+        <h2 class="scene-title">과거의 당신이 보낸<br/>편지가 도착했어요.</h2>
+        <div class="letter-card">
+          <div class="letter-seal" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M4 7.5 12 13l8-5.5M5 6h14a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 18H5a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 5 6z"
+                    stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <p class="letter-text" id="letterText"></p>
+          <p class="letter-from" id="letterFrom"></p>
+        </div>
+        <button class="btn-primary" data-action="finish-journey" style="margin-top:40px">마음에 담아둘게요</button>
+      </div>
+    </section>
+
+    <!-- ================= 장면 7: 배웅 ================= -->
+    <section class="screen" id="screen-farewell" aria-label="마무리 인사">
+      <div class="scene">
+        <svg width="96" height="96" viewBox="0 0 120 120" aria-hidden="true" style="margin-bottom:24px; animation: float 5s ease-in-out infinite;">
+          <path fill="#8FD6F2" d="M60 12c26 0 44 18 44 44 0 15-7 27-19 34 4-7 3-12-2-14-6-2-11 2-17 3-22 4-50-4-50-27C16 28 34 12 60 12z"/>
+          <path fill="#FFFFFF" d="M79 20c9 5 15 13 17 23 2 10-2 13-7 12-6-1-7-7-12-11-5-4-12-5-11-12 1-7 7-14 13-12z" opacity=".95"/>
+          <path d="M42 56q3-4 6 0M70 56q3-4 6 0" stroke="#1E3A5F" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+          <path d="M54 66q7 6 14 0" stroke="#1E3A5F" stroke-width="3.4" stroke-linecap="round" fill="none"/>
+        </svg>
+        <h2 class="scene-title" id="farewellTitle">오늘의 파도는 여기까지.</h2>
+        <p class="scene-sub">
+          내려놓은 마음은 바다가 잘 맡아둘게요.<br/>
+          마음이 무거워지는 날, 언제든 다시 쉬어가세요.
+        </p>
+        <button class="btn-primary" data-action="go-home">쉼터 입구로 돌아가기</button>
+      </div>
+    </section>
+
+    <!-- ================= 장면 8: 여정 (지나온 파도들) ================= -->
+    <section class="screen" id="screen-journey" aria-label="나의 여정">
+      <div class="scene" style="justify-content:flex-start; padding-top:128px">
+        <p class="scene-kicker">Journey</p>
+        <h2 class="scene-title" id="journeyTitle">지나온 파도들</h2>
+        <p class="scene-sub">그동안 내려놓은 사진과, 스스로에게 남긴 응원의 말들이에요.</p>
+        <div class="memory-grid" id="memoryGrid" aria-live="polite"></div>
+        <button class="btn-ghost" data-action="go-home" style="margin-top:40px">쉼터로 돌아가기</button>
+        <button class="btn-ghost" data-action="withdraw" style="color:#C43D3D">모든 기록 지우고 떠나기</button>
+      </div>
+    </section>
+
+    <!-- ================= 장면 9: 쉼 놀이터 ================= -->
+    <section class="screen" id="screen-playground" aria-label="쉼 놀이터">
+      <div class="scene" style="justify-content:flex-start; padding-top:128px">
+        <p class="scene-kicker">Rest Playground</p>
+        <h2 class="scene-title">쉼 놀이터</h2>
+        <p class="scene-sub">잘하는 건 금지! 그냥 재미로 해보는 1~3분짜리 작은 쉼 놀이들이에요.</p>
+        <div class="play-grid" id="playGrid"></div>
+        <button class="btn-primary" data-action="shuffle-plays" style="margin-top:40px">
+          다른 놀이 보여주세요
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 12a8 8 0 0 1 13.6-5.7L20 8.5M20 12a8 8 0 0 1-13.6 5.7L4 15.5M20 4v4.5h-4.5M4 20v-4.5h4.5"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="btn-ghost" data-action="go-home">쉼터로 돌아가기</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- 시스템 토스트 -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- ================= 문서 모달: 개인정보처리방침 ================= -->
+  <div class="modal-backdrop" id="privacyModal" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="privacyTitle">개인정보처리방침</h3>
+        <button class="modal-close" data-action="close-modal" aria-label="닫기">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <p class="doc-intro">
+        JE:JU는 '있는 그대로의 나'를 위한 쉼터입니다.<br/>
+        꼭 필요한 최소한의 정보만 받고, 개인정보보호법이 정한 약속대로만 다룹니다.
+      </p>
+
+      <h4>1. 수집하는 개인정보의 항목과 방법</h4>
+      <ul>
+        <li>[필수] 별명(닉네임) — 본명일 필요가 없으며, 본명 사용을 권하지 않습니다.</li>
+        <li>[필수] 비밀번호 — 원문은 저장하지 않고, 복원할 수 없는 암호화(SHA-256 해시) 값만 저장합니다.</li>
+        <li>[필수] 감정 기록 — 오늘의 파도(1~5), 한 문장, 힘들었던·편안했던 순간, 미래의 나에게 남기는 메시지 / 기록 일시</li>
+        <li>[선택] 사진 1장 — 첨부하지 않아도 모든 기능을 이용할 수 있습니다.</li>
+        <li>수집 방법 — 이용자가 화면에서 직접 입력·첨부한 정보만 수집하며, 접속 기록(IP), 쿠키, 광고 식별자 등은 수집하지 않습니다.</li>
+      </ul>
+      <p>
+        별명도 다른 정보와 결합하면 개인정보가 될 수 있고, 얼굴을 알아볼 수 있는 사진은 그 자체로
+        개인정보가 될 수 있어요. 얼굴이 나온 사진이나 다른 사람이 담긴 사진은 첨부하지 않기를 권해드립니다.
+      </p>
+
+      <h4>2. 수집·이용 목적</h4>
+      <ul>
+        <li>본인 확인(별명·비밀번호)과 내 기록의 보호</li>
+        <li>'파도의 편지', '여정' 등 기록 기반 기능의 제공</li>
+      </ul>
+      <p>위 목적 외의 이용(광고, 프로필 분석, 제3자 제공 등)은 하지 않습니다.</p>
+
+      <h4>3. 보유 및 이용 기간</h4>
+      <ul>
+        <li>탈퇴(기록 삭제)하거나 삭제를 요청할 때까지 보유합니다.</li>
+        <li>탈퇴 시 지체 없이 파기합니다. 숨김 처리가 아니라 저장소에서 실제로 삭제하며(개인정보보호법 제21조), 별도 보존을 요구하는 법령상 기록은 없습니다.</li>
+        <li>이용자 브라우저(localStorage)에 남은 백업은 브라우저 데이터를 지우면 함께 삭제됩니다.</li>
+      </ul>
+
+      <h4>4. 제3자 제공 및 처리 위탁</h4>
+      <ul>
+        <li>개인정보를 제3자에게 제공하지 않습니다.</li>
+        <li>기록 보관을 위해 Google 스프레드시트(Google LLC)를 저장 인프라로 이용합니다. 보관 목적에 한하며, 그 외 용도로 쓰이지 않습니다.</li>
+      </ul>
+
+      <h4>5. 이용자의 권리와 행사 방법</h4>
+      <ul>
+        <li>열람 — '여정' 메뉴에서 언제든 내 기록을 확인할 수 있어요.</li>
+        <li>삭제(탈퇴) — '여정' 화면의 '모든 기록 지우고 떠나기'로 즉시 파기하거나, 아래 연락처로 요청할 수 있어요.</li>
+        <li>동의 거부 — 필수 항목 동의를 거부할 권리가 있으나, 이 경우 기록 기능 이용이 어려워요. 선택 항목(사진)은 동의하지 않아도 모든 기능을 쓸 수 있습니다.</li>
+      </ul>
+
+      <h4>6. 안전성 확보 조치</h4>
+      <ul>
+        <li>비밀번호는 원문 대신 해시 값만 저장하여 운영자도 알 수 없습니다.</li>
+        <li>모든 통신은 HTTPS로 암호화되며, 기록의 저장·조회 시 본인 확인 토큰을 검증합니다.</li>
+      </ul>
+
+      <h4>7. 유출 시 통지</h4>
+      <p>개인정보 유출이 확인되면 개인정보보호법 제34조에 따라 72시간 이내에 개인정보보호위원회에 신고하고 이용자에게 알립니다. 해킹 등 침해사고는 정보통신망법 제48조의3에 따라 별도로 신고합니다.</p>
+
+      <h4>8. 만 14세 미만의 이용</h4>
+      <p>JE:JU는 만 14세 이상만 이용할 수 있습니다. 만 14세 미만을 위한 법정대리인 동의 절차를 갖추고 있지 않아 가입을 받지 않습니다.</p>
+
+      <h4>9. 개인정보 보호책임자</h4>
+      <p>
+        보호책임자: 진영 · 문의: vip589584@gmail.com<br/>
+        기타 신고·상담: 개인정보보호위원회(pipc.go.kr) · 개인정보침해신고센터(privacy.kisa.or.kr, 국번 없이 118)
+      </p>
+
+      <p class="doc-date">시행일: 2026년 7월 17일</p>
+    </div>
+  </div>
+
+  <!-- ================= 문서 모달: 이용약관 ================= -->
+  <div class="modal-backdrop" id="termsModal" role="dialog" aria-modal="true" aria-labelledby="termsTitle">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="termsTitle">이용약관</h3>
+        <button class="modal-close" data-action="close-modal" aria-label="닫기">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <p class="doc-intro">
+        어렵고 딱딱한 약관 대신, 꼭 필요한 약속만 담았습니다.
+      </p>
+
+      <h4>1. JE:JU는 이런 곳이에요</h4>
+      <p>
+        JE:JU(Just Enough. Just You.)는 하루의 감정을 파도에 잠시 내려놓는
+        디지털 감정 쉼터입니다. 일기장도, 생산성 도구도 아니며,
+        기록의 완성도를 평가하지 않습니다.
+      </p>
+
+      <h4>2. 이용할 수 있는 나이</h4>
+      <p>
+        만 14세 이상만 이용할 수 있어요. 만 14세 미만은 법정대리인 동의 절차가
+        마련되어 있지 않아 가입할 수 없습니다.
+      </p>
+
+      <h4>3. 의료 서비스가 아니에요</h4>
+      <p>
+        JE:JU는 심리 상담이나 의료 서비스가 아닙니다. 마음의 어려움이
+        계속되거나 위기 상황이라면 전문가의 도움을 받아주세요.
+        자살예방 상담전화 109, 정신건강 위기상담 1577-0199에서
+        24시간 이야기를 들어드립니다.
+      </p>
+
+      <h4>4. 계정 — 별명과 비밀번호</h4>
+      <ul>
+        <li>별명과 비밀번호만으로 계정이 만들어져요. 비밀번호를 잊으면 복구 수단이 없어, 기존 기록을 이어갈 수 없고 새 이름으로 다시 시작해야 해요.</li>
+        <li>계정을 지키는 책임은 본인에게 있어요. 비밀번호를 다른 사람과 공유하지 마세요.</li>
+      </ul>
+
+      <h4>5. 이용할 때의 약속</h4>
+      <ul>
+        <li>다른 사람의 이름·정보를 입력하지 않아요.</li>
+        <li>다른 사람의 얼굴이 나온 사진, 다른 사람이 저작권을 가진 이미지를 무단으로 올리지 않아요. (초상권·저작권 침해의 책임은 올린 사람에게 있어요.)</li>
+        <li>기록은 본인의 마음을 위해서만 사용해요.</li>
+        <li>자동화 공격, 취약점 악용 등 서비스에 피해를 주는 방식으로 이용하지 않아요.</li>
+      </ul>
+
+      <h4>6. 탈퇴와 기록의 파기</h4>
+      <p>
+        '여정' 화면의 '모든 기록 지우고 떠나기'로 언제든 떠날 수 있어요.
+        탈퇴하면 계정과 모든 기록(사진 포함)이 저장소에서 실제로 삭제되며
+        (개인정보보호법 제21조), 삭제된 기록은 복구할 수 없습니다.
+      </p>
+
+      <h4>7. 서비스의 변경과 책임</h4>
+      <ul>
+        <li>쉼터는 더 나은 쉼을 위해 예고 없이 개선되거나 변경·중단될 수 있어요.</li>
+        <li>무료로 제공되는 서비스로, 천재지변·시스템 장애 등 불가피한 사유로 인한 기록 유실에 대해서는 책임이 제한될 수 있어요. 소중한 기록은 가끔 따로 간직해 주세요.</li>
+        <li>침해사고가 발생하면 정보통신망법 제48조의3 등 관련 법령에 따라 지체 없이 신고하고 필요한 조치를 해요.</li>
+      </ul>
+
+      <h4>8. 준거법</h4>
+      <p>이 약관은 대한민국 법을 따르며, 다툼이 생기면 민사소송법에 따른 관할 법원에서 해결해요.</p>
+
+      <p class="doc-date">시행일: 2026년 7월 17일</p>
+    </div>
+  </div>
+
+  <script>
+  /* ===============================================================
+     JE:JU 애플리케이션 스크립트
+     ---------------------------------------------------------------
+     구조 (모듈 분리)
+       CONFIG   : 환경 설정 (Apps Script URL)
+       WAVES    : 파도 5단계 데이터
+       STEPS    : 기록 질문 4단계 데이터
+       Store    : localStorage (닉네임 기억 + 오프라인 백업)
+       Api      : Google Apps Script 통신 (POST 저장 / GET 편지)
+       UI       : 화면 전환·토스트 등 표현 계층
+       Journey  : 사용자 여정 상태 및 흐름 제어
+     =============================================================== */
+
+  /* ------------------ 환경 설정 ------------------ */
+  const CONFIG = {
+    /* Google Apps Script 웹 앱 배포 URL (연동 완료) */
+    APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbyEdbgwU2pw6Mo1eg0-izxrBIZw9hkELzV0cyVD16RsXBaLM5LVKBl7VY3W7FpDZEdncA/exec",
+    SAVING_MIN_MS: 2600   // 로딩 최소 노출 시간 — 서두르지 않는 경험
+  };
+
+  /* ------------------ 파도 5단계 ------------------ */
+  const WAVES = [
+    { level: 1, label: "아주 잔잔해요", desc: "마음이 고요했던 하루", color: "var(--wave-1)", amp: 2  },
+    { level: 2, label: "잔잔해요",     desc: "무난히 흘러간 하루",   color: "var(--wave-2)", amp: 5  },
+    { level: 3, label: "일렁여요",     desc: "마음이 조금 흔들린 하루", color: "var(--wave-3)", amp: 8  },
+    { level: 4, label: "출렁여요",     desc: "감정이 크게 움직인 하루", color: "var(--wave-4)", amp: 11 },
+    { level: 5, label: "거칠어요",     desc: "버티기 힘들었던 하루",  color: "var(--wave-5)", amp: 14 }
+  ];
+
+  /* ------------------ 기록 질문 4단계 ------------------ */
+  const STEPS = [
+    {
+      key: "reflection",
+      question: "오늘 하루를\n한 문장으로 남긴다면?",
+      hint: "짧아도 괜찮아요. 떠오르는 그대로 적어보세요.",
+      placeholder: "예) 그래도 하루를 무사히 건넜다.",
+      nextLabel: "다음 물결로"
+    },
+    {
+      key: "hardest",
+      question: "오늘 가장 힘들었던 순간은\n언제였나요?",
+      hint: "말하고 나면, 조금은 가벼워질 거예요.",
+      placeholder: "여기 적은 이야기는 아무도 평가하지 않아요.",
+      nextLabel: "다음 물결로"
+    },
+    {
+      key: "happiest",
+      question: "그래도 마음이 잠시\n편안했던 순간이 있었나요?",
+      hint: "아주 사소한 순간이어도 좋아요.",
+      placeholder: "예) 퇴근길에 바람이 시원했다.",
+      nextLabel: "다음 물결로"
+    },
+    {
+      key: "photo",
+      type: "photo",
+      question: "오늘을 사진 한 장으로\n남기고 싶다면?",
+      hint: "선택이에요. 하늘, 골목, 커피 — 무엇이든 좋아요.",
+      nextLabel: "다음 물결로"
+    },
+    {
+      key: "future",
+      question: "언젠가 지친 마음으로 돌아올\n나에게, 한마디 남겨주세요.",
+      hint: "이 말은 '파도의 편지'가 되어, 미래의 당신에게 돌아와요.",
+      placeholder: "예) 그때도 잘 버텼잖아. 이번에도 분명 잔잔해질 거야.",
+      nextLabel: "잠시 내려놓기"
+    }
+  ];
+
+  /* ------------------ Store: 로컬 저장 ------------------ */
+  const Store = {
+    AUTH_KEY: "jeju_auth",           // 로그인 세션 { name, token }
+    RECORDS_KEY: "jeju_records",
+    LOCAL_USERS_KEY: "jeju_local_users",   // 오프라인 모드용 간이 계정
+
+    getAuth()     { try { return JSON.parse(localStorage.getItem(this.AUTH_KEY) || "null"); } catch { return null; } },
+    setAuth(auth) { try { localStorage.setItem(this.AUTH_KEY, JSON.stringify(auth)); } catch {} },
+    clearAuth()   { try { localStorage.removeItem(this.AUTH_KEY); } catch {} },
+    getName()     { const auth = this.getAuth(); return auth ? auth.name : ""; },
+    getToken()    { const auth = this.getAuth(); return auth ? auth.token : ""; },
+
+    /* 오프라인 모드 전용: 이 기기 안에서만 쓰는 간이 사용자 목록 */
+    getLocalUsers()      { try { return JSON.parse(localStorage.getItem(this.LOCAL_USERS_KEY) || "{}"); } catch { return {}; } },
+    setLocalUsers(users) { try { localStorage.setItem(this.LOCAL_USERS_KEY, JSON.stringify(users)); } catch {} },
+    localHash(name, password) {
+      let hash = 5381;
+      for (const ch of `${name}:${password}`) hash = ((hash << 5) + hash + ch.codePointAt(0)) >>> 0;
+      return "local-" + hash.toString(16);
+    },
+
+    getRecords() {
+      try { return JSON.parse(localStorage.getItem(this.RECORDS_KEY) || "[]"); }
+      catch { return []; }
+    },
+    addRecord(record) {
+      const records = this.getRecords();
+      records.push(record);
+      try { localStorage.setItem(this.RECORDS_KEY, JSON.stringify(records)); } catch {}
+    },
+
+    /* 오프라인 모드용: 같은 이름이 남긴 과거 편지 중 무작위 1개 */
+    getRandomLetter(name, excludeTimestamp) {
+      const pool = this.getRecords().filter(r =>
+        r.name === name && r.futureMessage && r.timestamp !== excludeTimestamp
+      );
+      if (!pool.length) return null;
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      return { message: pick.futureMessage, date: pick.date };
+    }
+  };
+
+  /* ------------------ Api: Apps Script 통신 ------------------ */
+  const Api = {
+    isConnected() { return CONFIG.APPS_SCRIPT_URL.startsWith("https://"); },
+
+    /* 인증 — 새 이름이면 가입, 기존 이름이면 비밀번호 확인
+       반환: { status: "success"|"wrong-password"|"error", isNew, token } */
+    async auth(name, password) {
+      if (!this.isConnected()) {
+        /* 오프라인 모드: 이 기기 안에서만 확인 */
+        const users = Store.getLocalUsers();
+        const hash = Store.localHash(name, password);
+        if (users[name] === undefined) {
+          users[name] = hash;
+          Store.setLocalUsers(users);
+          return { status: "success", isNew: true, token: hash };
+        }
+        return users[name] === hash
+          ? { status: "success", isNew: false, token: hash }
+          : { status: "wrong-password" };
+      }
+      try {
+        const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "auth", name, password })
+        });
+        return await res.json();
+      } catch (err) {
+        console.warn("[JE:JU] 인증 실패", err);
+        return { status: "error" };
+      }
+    },
+
+    /* POST — 오늘의 기록 저장
+       Content-Type을 text/plain으로 보내 CORS preflight를 피한다. (GAS 표준 패턴) */
+    async saveRecord(record) {
+      if (!this.isConnected()) return { ok: false, offline: true };
+      try {
+        const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ ...record, token: Store.getToken() })
+        });
+        const data = await res.json();
+        return { ok: data.status === "success" };
+      } catch (err) {
+        console.warn("[JE:JU] 저장 실패 — 오프라인 백업으로 대체합니다.", err);
+        return { ok: false };
+      }
+    },
+
+    /* GET — 파도의 편지 (같은 이름의 과거 메시지 중 무작위 1개) */
+    async fetchLetter(name) {
+      if (!this.isConnected()) return null;
+      try {
+        const url = `${CONFIG.APPS_SCRIPT_URL}?action=letter&name=${encodeURIComponent(name)}&token=${encodeURIComponent(Store.getToken())}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.status === "success" && data.message) {
+          return { message: data.message, date: data.date || "" };
+        }
+        return null;
+      } catch (err) {
+        console.warn("[JE:JU] 편지 불러오기 실패 — 로컬 백업을 확인합니다.", err);
+        return null;
+      }
+    },
+
+    /* POST — 탈퇴: 계정과 모든 기록의 실제 파기 (개인정보보호법 제21조) */
+    async withdraw(name) {
+      if (!this.isConnected()) return { ok: true };   // 오프라인: 로컬만 파기
+      try {
+        const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "withdraw", name, token: Store.getToken() })
+        });
+        const data = await res.json();
+        return { ok: data.status === "success" };
+      } catch (err) {
+        console.warn("[JE:JU] 탈퇴 처리 실패", err);
+        return { ok: false };
+      }
+    },
+
+    /* GET — 여정 (같은 이름의 과거 기록 목록: 날짜·파도·응원·사진) */
+    async fetchJourney(name) {
+      if (!this.isConnected()) return null;
+      try {
+        const url = `${CONFIG.APPS_SCRIPT_URL}?action=journey&name=${encodeURIComponent(name)}&token=${encodeURIComponent(Store.getToken())}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.status === "success") return data.items;
+        if (data.status === "empty") return [];
+        return null;
+      } catch (err) {
+        console.warn("[JE:JU] 여정 불러오기 실패 — 로컬 백업을 확인합니다.", err);
+        return null;
+      }
+    }
+  };
+
+  /* ------------------ UI: 표현 계층 ------------------ */
+  const UI = {
+    current: "screen-landing",
+
+    /* 장면 전환 — 떠나는 화면은 흐려지고, 오는 화면은 떠오른다 */
+    goTo(screenId) {
+      if (screenId === this.current) return;
+      const from = document.getElementById(this.current);
+      const to = document.getElementById(screenId);
+      from.classList.add("is-leaving");
+      setTimeout(() => {
+        from.classList.remove("is-active", "is-leaving");
+        to.classList.add("is-active");
+        window.scrollTo({ top: 0, behavior: "instant" });
+        this.current = screenId;
+        const focusable = to.querySelector("input, textarea");
+        if (focusable) setTimeout(() => focusable.focus({ preventScroll: true }), 450);
+      }, 280);
+    },
+
+    toast(message, ms = 3200) {
+      const el = document.getElementById("toast");
+      el.textContent = message;
+      el.classList.add("is-show");
+      clearTimeout(this._toastTimer);
+      this._toastTimer = setTimeout(() => el.classList.remove("is-show"), ms);
+    },
+
+    /* 파도 선택 카드 렌더링 — 진폭(amp)이 커지는 SVG 물결 */
+    renderWaveOptions(onSelect) {
+      const grid = document.getElementById("waveGrid");
+      grid.innerHTML = "";
+      WAVES.forEach(wave => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "wave-option";
+        btn.setAttribute("role", "radio");
+        btn.setAttribute("aria-checked", "false");
+        btn.dataset.level = wave.level;
+        btn.innerHTML = `
+          <span class="wave-icon" style="background:color-mix(in srgb, ${wave.color} 14%, white)">
+            <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+              <path d="M3 21q7-${wave.amp} 14 0t14 0" style="stroke:${wave.color}" stroke-width="2.6" stroke-linecap="round"/>
+              <path d="M3 27q7-${Math.max(2, wave.amp - 4)} 14 0t14 0" style="stroke:${wave.color}" stroke-width="2.6" stroke-linecap="round" opacity=".45"/>
+            </svg>
+          </span>
+          <span class="wave-label">${wave.label}</span>
+          <span class="wave-desc">${wave.desc}</span>`;
+        btn.addEventListener("click", () => {
+          grid.querySelectorAll(".wave-option").forEach(b => {
+            b.classList.remove("is-selected");
+            b.setAttribute("aria-checked", "false");
+          });
+          btn.classList.add("is-selected");
+          btn.setAttribute("aria-checked", "true");
+          onSelect(wave);
+        });
+        grid.appendChild(btn);
+      });
+    },
+
+    /* 기록 스텝 렌더링 */
+    renderStep(index, savedValue) {
+      const step = STEPS[index];
+      const dots = document.getElementById("stepDots");
+      dots.innerHTML = STEPS.map((_, i) =>
+        `<span class="${i < index ? "is-done" : i === index ? "is-current" : ""}"></span>`
+      ).join("");
+
+      const body = document.getElementById("stepBody");
+      body.classList.remove("step-fade");
+      void body.offsetWidth;               // 리플로우로 애니메이션 재시작
+      body.classList.add("step-fade");
+
+      document.getElementById("stepQuestion").innerHTML = step.question.replace("\n", "<br/>");
+      document.getElementById("stepHint").textContent = step.hint;
+
+      /* 스텝 종류에 따라 입력 UI 전환 (텍스트 / 사진) */
+      const input = document.getElementById("stepInput");
+      const photoField = document.getElementById("photoField");
+      if (step.type === "photo") {
+        input.style.display = "none";
+        photoField.style.display = "block";
+        this.refreshPhotoPreview();
+      } else {
+        input.style.display = "";
+        photoField.style.display = "none";
+        input.placeholder = step.placeholder;
+        input.value = savedValue || "";
+        setTimeout(() => input.focus({ preventScroll: true }), 420);
+      }
+
+      document.getElementById("stepNextBtn").innerHTML = `${step.nextLabel}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`;
+    },
+
+    /* 사진 스텝: 현재 첨부 상태를 미리보기에 반영 */
+    refreshPhotoPreview() {
+      const hasPhoto = Boolean(Journey.state.photo);
+      document.getElementById("photoPickBtn").style.display = hasPhoto ? "none" : "flex";
+      document.getElementById("photoPreview").style.display = hasPhoto ? "block" : "none";
+      document.getElementById("photoPreviewImg").src = Journey.state.photo || "";
+    },
+
+    /* 스크롤 등장 효과 — 가치 카드 */
+    observeValueCards() {
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach((entry, i) => {
+          if (entry.isIntersecting) {
+            setTimeout(() => entry.target.classList.add("is-visible"), i * 120);
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.25 });
+      document.querySelectorAll(".value-card").forEach(card => observer.observe(card));
+    },
+
+    /* 스크롤 방향에 따라 헤더 감추기 — 몰입 유지 */
+    bindHeaderAutoHide() {
+      let lastY = 0;
+      window.addEventListener("scroll", () => {
+        const y = window.scrollY;
+        document.getElementById("siteHeader")
+          .classList.toggle("is-hidden", y > 160 && y > lastY);
+        lastY = y;
+      }, { passive: true });
+    }
+  };
+
+  /* ------------------ Journey: 여정 상태 & 흐름 ------------------ */
+  const Journey = {
+    state: null,
+
+    resetState() {
+      this.state = {
+        name: Store.getName(),
+        waveLevel: null, waveLabel: "",
+        reflection: "", hardest: "", happiest: "", future: "",
+        photo: "",
+        stepIndex: 0
+      };
+    },
+
+    /* 여정 시작
+       — 이름을 이미 알고 있으면 다시 묻지 않고 바로 파도 장면으로 */
+    start() {
+      this.resetState();
+      if (this.state.name) { this.enterWave(); return; }
+      this.showWelcome("잘 오셨어요.<br/>뭐라고 불러드리면 될까요?", "");
+    },
+
+    /* 환대 장면 표시 (첫 방문 / 다른 이름으로 들어가기) */
+    showWelcome(titleHtml, prefill) {
+      document.getElementById("welcomeTitle").innerHTML = titleHtml;
+      document.getElementById("nameInput").value = prefill;
+      document.getElementById("pwInput").value = "";
+      UI.goTo("screen-welcome");
+    },
+
+    /* 다른 이름으로 — 세션을 비우고 다시 문 앞으로 */
+    changeName() {
+      Store.clearAuth();
+      this.state.name = "";
+      this.showWelcome("잘 오셨어요.<br/>뭐라고 불러드리면 될까요?", "");
+    },
+
+    /* 별명 + 비밀번호 확인
+       — 새 이름이면 가입, 기존 이름이면 비밀번호가 맞아야 입장 */
+    async submitName() {
+      const name = document.getElementById("nameInput").value.trim();
+      const password = document.getElementById("pwInput").value;
+      if (!name) { UI.toast("불리고 싶은 이름을 살짝 알려주세요."); return; }
+      if (!password || password.length < 4) { UI.toast("비밀번호는 4자 이상으로 정해주세요."); return; }
+      if (!document.getElementById("agreeTerms").checked
+          || !document.getElementById("agreePrivacy").checked) {
+        UI.toast("필수 동의 두 가지를 확인하고 체크해 주세요.");
+        return;
+      }
+
+      UI.toast("쉼터 문을 여는 중이에요…", 1400);
+      const result = await Api.auth(name, password);
+
+      if (result.status === "success") {
+        Store.setAuth({ name, token: result.token || "" });
+        this.state.name = name;
+        UI.toast(result.isNew
+          ? "처음 오셨네요. 나만의 쉼터가 만들어졌어요."
+          : `다시 만나서 반가워요, ${name}님.`);
+        this.enterWave();
+      } else if (result.status === "wrong-password") {
+        UI.toast("이미 쓰이고 있는 이름이에요. 비밀번호가 맞아야 들어갈 수 있어요.");
+      } else {
+        UI.toast("바다가 잠시 멀어요. 잠시 후 다시 시도해 주세요.");
+      }
+    },
+
+    /* 오늘의 파도 장면 준비 + 진입 */
+    enterWave() {
+      document.getElementById("waveTitle").innerHTML =
+        `${this.escape(this.state.name)}님, 오늘<br/>마음의 파도는 어땠나요?`;
+      document.getElementById("waveNextBtn").style.visibility = "hidden";
+      UI.renderWaveOptions(wave => {
+        this.state.waveLevel = wave.level;
+        this.state.waveLabel = wave.label;
+        document.getElementById("waveNextBtn").style.visibility = "visible";
+      });
+      UI.goTo("screen-wave");
+    },
+
+    submitWave() {
+      if (!this.state.waveLevel) { UI.toast("오늘의 파도를 하나 골라주세요."); return; }
+      this.state.stepIndex = 0;
+      UI.renderStep(0, this.state[STEPS[0].key]);
+      UI.goTo("screen-reflection");
+    },
+
+    /* 기록 스텝 진행 (skip = 빈 값 허용 — 압박 없는 경험) */
+    advanceStep(skip) {
+      const step = STEPS[this.state.stepIndex];
+      if (step.type === "photo") {
+        if (skip) this.state.photo = "";       // 사진은 선택 시점에 이미 state에 저장됨
+      } else {
+        this.state[step.key] = skip ? "" : document.getElementById("stepInput").value.trim();
+      }
+
+      if (this.state.stepIndex < STEPS.length - 1) {
+        this.state.stepIndex += 1;
+        UI.renderStep(this.state.stepIndex, this.state[STEPS[this.state.stepIndex].key]);
+      } else {
+        this.letGo();   // 마지막 스텝 → 잠시 내려놓기
+      }
+    },
+
+    /* '잠시 내려놓기' — 저장 + 파도의 편지 */
+    async letGo() {
+      UI.goTo("screen-saving");
+      const now = new Date();
+      const record = {
+        name: this.state.name,
+        date: now.toLocaleDateString("ko-KR"),
+        time: now.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+        waveLevel: this.state.waveLevel,
+        waveLabel: this.state.waveLabel,
+        reflection: this.state.reflection,
+        hardest: this.state.hardest,
+        happiest: this.state.happiest,
+        futureMessage: this.state.future,
+        photo: this.state.photo,
+        timestamp: now.toISOString()
+      };
+
+      /* 편지 먼저 조회(과거 기록에서) → 그 다음 저장.
+         저장/조회와 최소 로딩 시간을 함께 기다려 서두르지 않는 리듬을 만든다. */
+      const minWait = new Promise(resolve => setTimeout(resolve, CONFIG.SAVING_MIN_MS));
+      const letterPromise = Api.fetchLetter(record.name);
+      const savePromise = Api.saveRecord(record);
+
+      const [letter, saveResult] = await Promise.all([letterPromise, savePromise, minWait])
+        .then(([l, s]) => [l, s]);
+
+      /* 로컬 백업 — 용량(5MB) 보호를 위해 사진은 제외하고 남긴다 */
+      Store.addRecord({ ...record, photo: "" });
+
+      if (!saveResult.ok && !saveResult.offline) {
+        UI.toast("바다가 잠시 멀어서, 이 기기 안에 소중히 보관해뒀어요.");
+      } else if (saveResult.offline) {
+        UI.toast("연동 전 미리보기 — 기록은 이 기기 안에 보관돼요.");
+      }
+
+      this.showLetter(letter || Store.getRandomLetter(record.name, record.timestamp));
+    },
+
+    /* 파도의 편지 표시 — 과거 메시지가 없으면 첫 방문 환영 편지 */
+    showLetter(letter) {
+      const text = document.getElementById("letterText");
+      const from = document.getElementById("letterFrom");
+      if (letter) {
+        text.textContent = letter.message;
+        from.textContent = letter.date
+          ? `— ${letter.date}, 과거의 ${this.state.name}님이 바다에 남긴 말`
+          : `— 언젠가의 ${this.state.name}님이 바다에 남긴 말`;
+      } else {
+        text.textContent = "오늘 처음으로 마음을 내려놓으셨어요. 다음에 다시 오시면, 오늘의 당신이 남긴 말이 편지가 되어 기다리고 있을 거예요.";
+        from.textContent = "— JE:JU 바다가 대신 전하는 첫 인사";
+      }
+      UI.goTo("screen-letter");
+    },
+
+    finish() {
+      document.getElementById("farewellTitle").textContent =
+        `${this.state.name}님, 오늘의 파도는 여기까지.`;
+      UI.goTo("screen-farewell");
+    },
+
+    /* 탈퇴 — 확인 후 서버·로컬 모두에서 실제 파기 */
+    async withdraw() {
+      const name = Store.getName();
+      if (!name) return;
+      const sure = confirm(
+        `정말 떠나시겠어요?\n'${name}'님의 계정과 모든 기록(사진 포함)이 완전히 삭제되며, 복구할 수 없어요.`
+      );
+      if (!sure) return;
+
+      UI.toast("기록을 바다에서 지우는 중이에요…", 2400);
+      const result = await Api.withdraw(name);
+      if (!result.ok) {
+        UI.toast("삭제가 완료되지 못했어요. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
+
+      /* 로컬 파기: 이 이름의 기록·간이 계정·로그인 세션 */
+      const remaining = Store.getRecords().filter(r => r.name !== name);
+      try { localStorage.setItem(Store.RECORDS_KEY, JSON.stringify(remaining)); } catch {}
+      const users = Store.getLocalUsers();
+      delete users[name];
+      Store.setLocalUsers(users);
+      Store.clearAuth();
+
+      this.resetState();
+      UI.goTo("screen-landing");
+      UI.toast("모든 기록을 지웠어요. 언제든, 새 이름으로 다시 쉬어가세요.");
+    },
+
+    escape(str) {
+      return str.replace(/[&<>"']/g, ch =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    }
+  };
+
+  /* ------------------ Archive: 여정 (지나온 파도 아카이브) ------------------ */
+  const Archive = {
+    async open() {
+      const name = Store.getName();
+      if (!name) {
+        UI.toast("먼저 이름을 알려주시면, 여정을 모아드릴게요.");
+        Journey.start();
+        return;
+      }
+      document.getElementById("journeyTitle").innerHTML =
+        `${Journey.escape(name)}님이<br/>지나온 파도들`;
+      UI.goTo("screen-journey");
+
+      const grid = document.getElementById("memoryGrid");
+      grid.innerHTML = `<p class="journey-loading">파도를 거슬러 올라가는 중이에요…</p>`;
+
+      /* 시트에서 불러오고, 실패하면 로컬 백업(사진 제외)으로 대체 */
+      let items = await Api.fetchJourney(name);
+      if (items === null) {
+        items = Store.getRecords()
+          .filter(r => r.name === name)
+          .map(r => ({ date: r.date, waveLevel: r.waveLevel, message: r.futureMessage || "", photo: "" }))
+          .reverse();
+      }
+      this.render(items);
+    },
+
+    render(items) {
+      const grid = document.getElementById("memoryGrid");
+      const usable = (items || []).filter(item => item.message || item.photo);
+      if (!usable.length) {
+        grid.innerHTML = `
+          <div class="journey-empty">
+            <p>아직 모아둔 파도가 없어요.<br/>오늘의 마음을 한 번 내려놓으면, 여기에 차곡차곡 쌓여요.</p>
+            <button class="btn-primary" data-action="start-journey" style="margin-top:24px">첫 파도 남기러 가기</button>
+          </div>`;
+        return;
+      }
+      grid.innerHTML = usable.map((item, i) => {
+        const wave = WAVES.find(w => w.level === Number(item.waveLevel));
+        return `
+          <article class="memory-card" style="animation-delay:${i * 70}ms">
+            <div class="memory-head">
+              <span>${Journey.escape(String(item.date || ""))}</span>
+              <span class="memory-wave">${wave ? wave.label : ""}</span>
+            </div>
+            ${item.photo ? `<img class="memory-photo" src="${item.photo}" alt="그날 남긴 사진" loading="lazy"/>` : ""}
+            ${item.message ? `<p class="memory-msg">${Journey.escape(item.message)}</p>` : ""}
+          </article>`;
+      }).join("");
+    }
+  };
+
+  /* ------------------ Playground: 쉼 놀이터 ------------------ */
+  /* 카테고리: body(몸 풀기) / mind(마음 풀기) / imagine(상상 놀이) / joy(소소한 기쁨) */
+  const PLAYS = [
+    { c: "body",    t: "하늘 만지기 스트레칭",       d: "두 팔을 쭉— 뻗어 구름을 콕 찔러보세요. 발끝까지 기지개!" },
+    { c: "body",    t: "제자리 파도타기",           d: "어깨를 둥실둥실, 파도처럼 다섯 번. 아무도 안 볼 때 추천." },
+    { c: "body",    t: "물 한 잔, 바다처럼",        d: "천천히 세 모금. 마지막 모금은 눈을 감고 마셔보기." },
+    { c: "body",    t: "4-7-8 숨 고르기",           d: "4초 들이쉬고, 7초 머금고, 8초 내쉬기. 세 번이면 충분해요." },
+    { c: "mind",    t: "구름 3분 감상",             d: "오늘의 구름은 무슨 모양인가요? 고래를 찾으면 성공." },
+    { c: "mind",    t: "5-4-3-2-1 감각 놀이",       d: "보이는 것 5, 들리는 것 4, 닿는 것 3, 냄새 2, 맛 1 찾기." },
+    { c: "mind",    t: "한 곡 온전히 듣기",         d: "좋아하는 노래 한 곡, 눈 감고 끝까지. 스킵 금지!" },
+    { c: "mind",    t: "걱정 종이배 띄우기",        d: "걱정 하나를 상상의 종이배에 태워 수평선 너머로 배웅하기." },
+    { c: "imagine", t: "내 하루, 영화 제목 짓기",   d: "오늘이 영화라면 제목은? 장르는 코미디였길 바라며." },
+    { c: "imagine", t: "오늘의 색 정하기",          d: "지금 기분을 색으로 고르면? 이유는 묻지 않기로 해요." },
+    { c: "imagine", t: "책상 위 1cm 여행",          d: "가장 가까운 물건 하나를 여행자의 눈으로 30초 관찰." },
+    { c: "imagine", t: "낙서 1분",                  d: "잘 그릴 필요 전혀 없음. 펜 가는 대로 파도 한 줄." },
+    { c: "joy",     t: "감사 세 가지 소리 내기",     d: "사소할수록 좋아요. '이불이 폭신했다'도 훌륭한 감사." },
+    { c: "joy",     t: "혼저옵서예, 나!",           d: "제주 말로 나를 환영해 주세요. \"혼저옵서예~\" (어서 오세요)" },
+    { c: "joy",     t: "귤 하나 천천히",            d: "향 맡고, 까고, 한 조각씩. 귤이 없다면 상상 귤도 달아요." },
+    { c: "joy",     t: "미래의 나에게 응원 한 줄",   d: "오늘의 기록에서 남긴 그 말, 언젠가 편지로 돌아와요." }
+  ];
+
+  const Playground = {
+    COUNT: 6,   // 한 번에 보여줄 놀이 수
+
+    open() {
+      UI.goTo("screen-playground");
+      this.shuffle();
+    },
+
+    shuffle() {
+      const picks = [...PLAYS].sort(() => Math.random() - 0.5).slice(0, this.COUNT);
+      document.getElementById("playGrid").innerHTML = picks.map((play, i) => `
+        <article class="play-card cat-${play.c}" style="animation-delay:${i * 80}ms">
+          <span class="play-tag">${this.catName(play.c)}</span>
+          <h3>${play.t}</h3>
+          <p>${play.d}</p>
+        </article>`).join("");
+    },
+
+    catName(c) {
+      return { body: "몸 풀기", mind: "마음 풀기", imagine: "상상 놀이", joy: "소소한 기쁨" }[c] || "";
+    }
+  };
+
+  /* ------------------ Photo: 사진 첨부 처리 ------------------
+     Google Sheet 셀 한도(5만 자) 안에 들어가도록
+     캔버스로 크기·화질을 단계적으로 줄여 base64(JPEG)로 변환한다. */
+  const Photo = {
+    MAX_CHARS: 45000,   // 셀 한도보다 여유 있게
+
+    async process(file) {
+      const image = await this.loadImage(file);
+      const sizes = [640, 480, 360, 280];
+      const qualities = [0.7, 0.55, 0.4];
+      for (const size of sizes) {
+        for (const quality of qualities) {
+          const dataUrl = this.toJpeg(image, size, quality);
+          if (dataUrl.length <= this.MAX_CHARS) return dataUrl;
+        }
+      }
+      return null;   // 그래도 크면 첨부 불가
+    },
+
+    loadImage(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+        img.onerror = reject;
+        img.src = url;
+      });
+    },
+
+    toJpeg(image, maxSize, quality) {
+      const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(image.width * scale);
+      canvas.height = Math.round(image.height * scale);
+      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg", quality);
+    }
+  };
+
+  /* 파일 선택 → 리사이즈 → 미리보기 */
+  document.getElementById("photoInput").addEventListener("change", async event => {
+    const file = event.target.files[0];
+    event.target.value = "";   // 같은 파일 재선택 허용
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { UI.toast("이미지 파일만 담을 수 있어요."); return; }
+    UI.toast("사진을 파도에 싣는 중이에요…", 1600);
+    try {
+      const dataUrl = await Photo.process(file);
+      if (!dataUrl) { UI.toast("사진이 너무 커서 담지 못했어요. 다른 사진을 골라주세요."); return; }
+      Journey.state.photo = dataUrl;
+      UI.refreshPhotoPreview();
+    } catch {
+      UI.toast("사진을 읽지 못했어요. 다른 사진으로 시도해 주세요.");
+    }
+  });
+
+  /* ------------------ Modal: 문서 모달 (약관/개인정보) ------------------ */
+  const Modal = {
+    open(id) {
+      document.getElementById(id).classList.add("is-open");
+      document.body.style.overflow = "hidden";   // 배경 스크롤 잠금
+    },
+    close() {
+      document.querySelectorAll(".modal-backdrop.is-open")
+        .forEach(el => el.classList.remove("is-open"));
+      document.body.style.overflow = "";
+    }
+  };
+  /* 바깥 영역 클릭 / ESC 키로 닫기 */
+  document.querySelectorAll(".modal-backdrop").forEach(backdrop => {
+    backdrop.addEventListener("click", e => { if (e.target === backdrop) Modal.close(); });
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") Modal.close(); });
+
+  /* ------------------ 이벤트 바인딩 (위임) ------------------ */
+  document.addEventListener("click", event => {
+    const trigger = event.target.closest("[data-action]");
+    if (!trigger) return;
+    event.preventDefault();
+    const actions = {
+      "start-journey":  () => Journey.start(),
+      "go-home":        () => { Journey.resetState?.(); UI.goTo("screen-landing"); },
+      "submit-name":    () => Journey.submitName(),
+      "submit-wave":    () => Journey.submitWave(),
+      "next-step":      () => Journey.advanceStep(false),
+      "skip-step":      () => Journey.advanceStep(true),
+      "finish-journey": () => Journey.finish(),
+      "change-name":    () => Journey.changeName(),
+      "withdraw":       () => Journey.withdraw(),
+      "open-journey":   () => Archive.open(),
+      "open-playground":() => Playground.open(),
+      "shuffle-plays":  () => Playground.shuffle(),
+      "pick-photo":     () => document.getElementById("photoInput").click(),
+      "remove-photo":   () => { Journey.state.photo = ""; UI.refreshPhotoPreview(); },
+      "open-privacy":   () => Modal.open("privacyModal"),
+      "open-terms":     () => Modal.open("termsModal"),
+      "close-modal":    () => Modal.close()
+    };
+    actions[trigger.dataset.action]?.();
+
+    /* 헤더 메뉴 활성 표시 */
+    if (trigger.dataset.nav !== undefined) {
+      document.querySelectorAll(".site-nav a")
+        .forEach(a => a.classList.toggle("is-active", a === trigger));
+    }
+  });
+
+  /* Enter 키 흐름: 이름 → 비밀번호 → 입장 */
+  document.getElementById("nameInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); document.getElementById("pwInput").focus(); }
+  });
+  document.getElementById("pwInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); Journey.submitName(); }
+  });
+  /* 기록 입력: Enter(줄바꿈 없이)로 다음 물결 */
+  document.getElementById("stepInput").addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); Journey.advanceStep(false); }
+  });
+
+  /* ------------------ 초기화 ------------------ */
+  Journey.resetState();
+  UI.observeValueCards();
+  UI.bindHeaderAutoHide();
+  </script>
+</body>
+</html>
